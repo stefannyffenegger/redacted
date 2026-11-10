@@ -1,0 +1,7 @@
+2026-11-10 08:13:02,114 INFO  [main] Starting billing-api on k8s-worker-07 (pid 4711)
+2026-11-10 08:13:02,560 INFO  [main] Connecting to pg-main.dc1.acme-corp.internal:5432 as billing
+2026-11-10 08:13:03,001 DEBUG [http] Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJqZG9lIiwiaWF0IjoxNzAwMDAwMDAwfQ.c2lnbmF0dXJlLWhlcmU
+2026-11-10 08:13:04,250 WARN  [pay] card 4111 1111 1111 1111 declined for customer jane.doe@acme-corp.com
+2026-11-10 08:13:05,900 ERROR [aws] AccessDenied for AKIAIOSFODNN7EXAMPLE on arn:aws:s3:::acme-billing-exports
+2026-11-10 08:13:06,010 INFO  [net] peer 00:1A:2B:3C:4D:5E at 10.0.12.5 reachable, upstream 8.8.8.8
+2026-11-10 08:13:07,333 ERROR [cfg] failed to read /home/jdoe/billing/config.yaml: password=Zx9-q2Lp-77 rejected

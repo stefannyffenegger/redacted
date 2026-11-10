@@ -1,0 +1,5 @@
+192.168.10.44 - - [10/Nov/2026:08:01:12 +0100] "GET /api/v1/users HTTP/1.1" 200 512 "-" "curl/8.5.0"
+203.0.113.77 - alice [10/Nov/2026:08:01:15 +0100] "POST /login HTTP/1.1" 302 0 "https://portal.acme-corp.com/" "Mozilla/5.0"
+192.168.10.44 - - [10/Nov/2026:08:01:19 +0100] "GET /api/v1/orders?token=9f8e7d6c5b4a3210 HTTP/1.1" 200 2048 "-" "curl/8.5.0"
+2001:db8:42::17 - - [10/Nov/2026:08:02:01 +0100] "GET /health HTTP/1.1" 200 2 "-" "kube-probe/1.31"
+10.244.3.12 - - [10/Nov/2026:08:02:07 +0100] "GET /static/app.js HTTP/1.1" 304 0 "https://portal.acme-corp.com/dashboard" "Mozilla/5.0"

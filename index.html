@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- Nothing may leave the browser: no network connections, no external resources. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' file: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Redacted</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='4' width='14' height='3' rx='1' fill='%23222'/%3E%3Crect x='1' y='9' width='9' height='3' rx='1' fill='%23222'/%3E%3C/svg%3E">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"><i></i><i></i></span>redacted</div>
+    <div class="file-info"><span id="fileName">pasted snippet</span><span id="stats" class="muted"></span></div>
+    <div class="actions">
+      <label class="btn" title="Open a file (or drop it anywhere)">Open file<input id="fileInput" type="file" hidden></label>
+      <button class="btn" id="btnSelection" title="Redact the selected text everywhere">Redact selection</button>
+      <button class="btn" id="btnCopy" title="Copy redacted text">Copy</button>
+      <button class="btn primary" id="btnDownload" title="Download (Ctrl+S)">Download</button>
+      <button class="btn icon" id="btnTheme" title="Toggle dark mode" aria-label="Toggle dark mode">Theme</button>
+      <button class="btn icon" id="btnSidebar" title="Toggle sidebar" aria-label="Toggle sidebar">☰</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <main class="workspace">
+      <nav class="tabs" role="tablist">
+        <button role="tab" data-tab="input" class="tab active">Input</button>
+        <button role="tab" data-tab="compare" class="tab">Side by side</button>
+        <button role="tab" data-tab="output" class="tab">Redacted output</button>
+        <span class="spacer"></span>
+        <button class="btn small ghost" id="btnClear">Clear</button>
+        <button class="btn small ghost" id="btnSample">Load sample</button>
+      </nav>
+
+      <section class="panel active" data-panel="input">
+        <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste logs, configs or any text here, or drop a file anywhere on the page.&#10;&#10;Everything is processed locally in your browser. Nothing is uploaded."></textarea>
+      </section>
+
+      <section class="panel" data-panel="compare">
+        <div class="grid-head"><span>Original</span><span>Redacted</span></div>
+        <div id="grid" class="grid" tabindex="0"></div>
+        <div id="empty" class="empty">Nothing to show yet. Paste text or open a file in the <b>Input</b> tab.</div>
+      </section>
+
+      <section class="panel" data-panel="output">
+        <textarea id="output" spellcheck="false" readonly></textarea>
+      </section>
+
+      <footer class="statusbar">
+        <span class="badge ok">● Offline: nothing leaves your browser</span>
+        <span id="status" class="muted"></span>
+      </footer>
+    </main>
+
+    <aside class="sidebar" id="sidebar">
+      <details open>
+        <summary>Detectors <span id="totalCount" class="count"></span></summary>
+        <div id="ruleList"></div>
+      </details>
+
+      <details open>
+        <summary>Options</summary>
+        <label class="field">Placeholder format
+          <input id="optTemplate" type="text" spellcheck="false">
+          <small>Use <code>{TYPE}</code> and <code>{N}</code>, e.g. <code>&lt;{TYPE}_{N}&gt;</code> or <code>[{TYPE}-{N}]</code></small>
+        </label>
+        <label class="check"><input id="optPropagate" type="checkbox"> Redact every other occurrence of detected values</label>
+        <label class="check"><input id="optShortHosts" type="checkbox"> Also redact short host names (<code>web01</code> from <code>web01.corp.local</code>)</label>
+      </details>
+
+      <details open>
+        <summary>Terms <span id="termCount" class="count"></span></summary>
+        <p class="hint">Literal words to always redact (case-insensitive), e.g. company or customer names.</p>
+        <form id="termForm" class="inline-form">
+          <input id="termValue" type="text" placeholder="term" required spellcheck="false">
+          <input id="termType" type="text" placeholder="TYPE" list="typeList" value="CUSTOM" spellcheck="false">
+          <button class="btn small">Add</button>
+        </form>
+        <ul id="termList" class="list"></ul>
+      </details>
+
+      <details>
+        <summary>Custom patterns <span id="customCount" class="count"></span></summary>
+        <p class="hint">JavaScript regular expressions. Use a named group <code>(?&lt;v&gt;…)</code> to redact only part of a match.</p>
+        <form id="customForm" class="stack-form">
+          <input id="customName" type="text" placeholder="name, e.g. Ticket IDs" required>
+          <input id="customPattern" type="text" placeholder="pattern, e.g. \bJIRA-\d+\b" required spellcheck="false">
+          <div class="inline-form">
+            <input id="customType" type="text" placeholder="TYPE" list="typeList" value="CUSTOM" spellcheck="false">
+            <input id="customFlags" type="text" placeholder="flags (i, m)" spellcheck="false" maxlength="5">
+            <button class="btn small">Add</button>
+          </div>
+          <small id="customError" class="error"></small>
+        </form>
+        <ul id="customList" class="list"></ul>
+      </details>
+
+      <details>
+        <summary>Allowlist <span id="allowCount" class="count"></span></summary>
+        <p class="hint">Values that are never redacted. One per line, <code>*</code> wildcards allowed.</p>
+        <textarea id="allowlist" rows="7" spellcheck="false"></textarea>
+      </details>
+
+      <details>
+        <summary>Mapping <span id="mapCount" class="count"></span></summary>
+        <p class="hint warn">Contains the original sensitive values. Keep it private: it lets you translate placeholders back when someone refers to <code>&lt;HOST_3&gt;</code>.</p>
+        <div class="row-buttons">
+          <button class="btn small" id="btnMapJson">Export JSON</button>
+          <button class="btn small" id="btnMapCsv">Export CSV</button>
+        </div>
+        <input id="mapFilter" type="search" placeholder="filter…">
+        <div class="table-wrap"><table id="mapTable"><thead><tr><th>Placeholder</th><th>Original</th><th>#</th></tr></thead><tbody></tbody></table></div>
+      </details>
+
+      <details>
+        <summary>Profile</summary>
+        <p class="hint">Settings are saved in this browser. Export them to share rules with your team.</p>
+        <div class="row-buttons">
+          <button class="btn small" id="btnProfileExport">Export</button>
+          <label class="btn small">Import<input id="profileInput" type="file" accept=".json,application/json" hidden></label>
+          <button class="btn small ghost" id="btnReset">Reset to defaults</button>
+        </div>
+      </details>
+    </aside>
+  </div>
+
+  <datalist id="typeList">
+    <option value="CUSTOM"><option value="HOST"><option value="USER"><option value="ORG"><option value="SECRET"><option value="IP"><option value="PROJECT"><option value="CUSTOMER">
+  </datalist>
+
+  <div id="popover" class="popover" hidden></div>
+  <div id="dropOverlay" class="drop-overlay" hidden><div>Drop file to redact</div></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="js/rules.js"></script>
+  <script src="js/redactor.js"></script>
+  <script src="js/render.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

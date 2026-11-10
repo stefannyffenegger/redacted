@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: billing-api
+  namespace: acme-prod
+  annotations:
+    owner: "jane.doe@acme-corp.com"
+spec:
+  template:
+    spec:
+      nodeName: k8s-worker-07.dc1.acme-corp.internal
+      containers:
+        - name: api
+          image: registry.acme-corp.internal/billing/api:2.14.1
+          env:
+            - name: DB_HOST
+              value: pg-main.dc1.acme-corp.internal
+            - name: DATABASE_URL
+              value: postgres://billing:Zx9-q2Lp-77@pg-main.dc1.acme-corp.internal:5432/billing
+            - name: STRIPE_API_KEY
+              value: sk_test_EXAMPLEdoNotUseFAKE000000
+            - name: REQUEST_ID_SALT
+              value: 7c1e4b9a-2f3d-4e5a-8b6c-9d0e1f2a3b4c

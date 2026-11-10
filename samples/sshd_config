@@ -1,0 +1,11 @@
+# managed by ansible on bastion01.dc1.acme-corp.internal
+Port 22
+ListenAddress 10.0.12.5
+ListenAddress fd00:12::5
+HostKey /etc/ssh/ssh_host_ed25519_key
+PermitRootLogin no
+PasswordAuthentication no
+AllowUsers deploy@10.0.12.0/24 jdoe
+AuthorizedKeysFile /home/jdoe/.ssh/authorized_keys
+Match Address 192.168.50.0/24
+    PasswordAuthentication yes
