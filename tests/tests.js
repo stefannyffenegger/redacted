@@ -176,6 +176,70 @@
     ]);
   });
 
+  test('restored filenames', () => {
+    eq(['app.redacted.log', 'Dockerfile.redacted', 'a.redacted.tar.gz', 'notes.txt', '', null].map(R.restoredFilename),
+      ['app.restored.log', 'Dockerfile.restored', 'a.restored.tar.gz', 'notes.restored.txt', 'snippet.restored.txt', 'snippet.restored.txt']);
+  });
+
+  // ---- restore -----------------------------------------------------------
+  const ROUNDTRIP = 'server:\n  host: api01.prod.acme-corp.internal\n  password: "hunter2-but-longer"\n' +
+    'from 10.0.0.1 to 10.0.0.12 user=jane@acme.com\r\nretry api01\n' +
+    '-----BEGIN PRIVATE KEY-----\nAAA\n-----END PRIVATE KEY-----\n';
+  // Mirrors the JSON and CSV exports in app.js.
+  const toJson = mapping => { const o = {}; for (const m of mapping) o[m.placeholder] = { type: m.type, original: m.value, count: m.count }; return JSON.stringify(o, null, 2); };
+  const toCsv = mapping => { const q = v => '"' + String(v).replace(/"/g, '""') + '"'; return ['placeholder,type,original,count'].concat(mapping.map(m => [q(m.placeholder), q(m.type), q(m.value), m.count].join(','))).join('\r\n'); };
+
+  test('restore round-trips with the in-memory mapping', () => {
+    const r = R.redact(ROUNDTRIP);
+    ok(r.mapping.length >= 6, 'expected several mapping entries');
+    eq(R.restore(r.text, r.mapping).text, ROUNDTRIP);
+  });
+  test('restore round-trips through the JSON export', () => {
+    const r = R.redact(ROUNDTRIP);
+    eq(R.restore(r.text, R.parseMapping(toJson(r.mapping))).text, ROUNDTRIP);
+  });
+  test('restore round-trips through the CSV export (quotes, newlines)', () => {
+    const t = 'password="a,b""c" and ' + ROUNDTRIP;
+    const r = R.redact(t);
+    eq(R.restore(r.text, R.parseMapping(toCsv(r.mapping))).text, t);
+  });
+  test('restore round-trips with a custom template', () => {
+    for (const template of ['[{TYPE}-{N}]', '{TYPE}_{N}', '__{N}_{TYPE}__']) {
+      const r = R.redact(ROUNDTRIP, { template });
+      eq(R.restore(r.text, r.mapping).text, ROUNDTRIP, template);
+    }
+  });
+  test('restore: <IP_12> is not read as <IP_1> + "2"', () => {
+    const m = [{ placeholder: '<IP_1>', value: 'A' }, { placeholder: '<IP_12>', value: 'B' }];
+    eq(R.restore('<IP_12> <IP_1>', m).text, 'B A');
+  });
+  test('restore: undelimited template respects word edges', () => {
+    const m = [{ placeholder: 'IP_1', value: 'A', type: 'IP' }];
+    eq(R.restore('IP_1 IP_12 XIP_1 IP_1.', m).text, 'A IP_12 XIP_1 A.');
+  });
+  test('restore works on free text and reports counts', () => {
+    const r = R.restore('<HOST_1> cannot reach <IP_1>; <HOST_1> again', [
+      { placeholder: '<HOST_1>', value: 'db1.corp', type: 'HOST' }, { placeholder: '<IP_1>', value: '10.0.0.5', type: 'IP' }]);
+    eq([r.text, r.count, r.used.map(u => [u.placeholder, u.count])], ['db1.corp cannot reach 10.0.0.5; db1.corp again', 3, [['<HOST_1>', 2], ['<IP_1>', 1]]]);
+  });
+  test('restore reports placeholders missing from the mapping', () => {
+    const r = R.restore('<IP_1> <IP_7> <SECRET_2> <IP_1> <b>', [{ placeholder: '<IP_1>', value: 'x', type: 'IP' }]);
+    eq(r.unresolved, ['<IP_7>', '<SECRET_2>']);
+  });
+  test('restore does not re-expand values that look like placeholders', () => {
+    const m = [{ placeholder: '<A_1>', value: '<A_2>', type: 'A' }, { placeholder: '<A_2>', value: 'z', type: 'A' }];
+    eq(R.restore('<A_1>', m).text, '<A_2>');
+  });
+  test('parseMapping accepts arrays and rejects other JSON/CSV', () => {
+    eq(R.parseMapping('[{"placeholder":"<X_1>","value":"v"}]'), [{ placeholder: '<X_1>', type: '', value: 'v' }]);
+    eq(R.parseMapping('﻿placeholder,original\n<X_1>,v\n'), [{ placeholder: '<X_1>', type: '', value: 'v' }]);
+    for (const bad of ['{"app":"redacted","version":1}', '[1,2]', 'a,b\n1,2', '{}', '']) {
+      let threw = false;
+      try { R.parseMapping(bad); } catch (e) { threw = true; }
+      ok(threw, 'accepted ' + JSON.stringify(bad));
+    }
+  });
+
   // ---- report ----------------------------------------------------------------
   const failed = results.filter(r => !r.ok);
   document.getElementById('summary').textContent = `${failed.length ? 'FAIL' : 'PASS'}: ${results.length - failed.length}/${results.length} passed`;

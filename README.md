@@ -17,6 +17,19 @@ python3 -m http.server 8000   # then open http://localhost:8000
 
 `index.html#sample` loads a demo document.
 
+### Container
+
+If you'd rather run it in a container, the image is a plain nginx serving the static files
+(unprivileged, port 8080, with the CSP also sent as a header). Redaction still happens
+entirely in your browser; the server never receives your text.
+
+```sh
+docker build -t redacted .
+docker run --rm -p 8080:8080 redacted   # then open http://localhost:8080
+```
+
+With podman, use `podman build --format docker -t redacted .` to keep the `HEALTHCHECK`.
+
 ## Features
 
 - **Auto-detection**, each detector can be toggled:
@@ -42,6 +55,10 @@ python3 -m http.server 8000   # then open http://localhost:8000
   - **Download** (Ctrl+S) saves `app.log → app.redacted.log`; pasted text saves as `snippet.redacted.txt`.
   - **Copy** puts the redacted text on the clipboard.
   - **Mapping export** (JSON/CSV) lets you translate placeholders back. It contains the original values, so keep it private.
+- **Restore.** The **Restore** tab reverses a redaction: paste redacted text (or a reply that mentions `<HOST_3>`), or open a redacted file, and it puts the original values back.
+  - It uses the mapping of the current document, or a loaded `.mapping.json` / `.mapping.csv` export. Dropping a mapping file on the tab loads it.
+  - Placeholders that aren't in the mapping (e.g. from a different file) are listed.
+  - Download saves `app.redacted.log → app.restored.log`. Restored text and loaded mappings are kept in memory only.
 - **Profiles.** Settings are kept in the browser's localStorage. Export or import them as JSON to share rules with a team. Document content is never stored.
 - Light and dark theme.
 
@@ -60,9 +77,10 @@ google-chrome --headless --dump-dom "file://$PWD/tests/tests.html" | grep -o 'id
 | File | Purpose |
 |------|---------|
 | `js/rules.js` | detector definitions |
-| `js/redactor.js` | engine: match → resolve overlaps → allowlist → propagate → number placeholders (no DOM) |
+| `js/redactor.js` | engine: match → resolve overlaps → allowlist → propagate → number placeholders; `restore()` and mapping parsing (no DOM) |
 | `js/render.js` | side-by-side HTML renderer |
 | `js/app.js` | UI wiring |
+| `Dockerfile`, `docker/nginx.conf` | optional static container |
 
 ## Limitations and ideas
 

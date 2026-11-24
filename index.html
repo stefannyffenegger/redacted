@@ -14,10 +14,6 @@
     <div class="brand"><span class="logo" aria-hidden="true"><i></i><i></i></span>redacted</div>
     <div class="file-info"><span id="fileName">pasted snippet</span><span id="stats" class="muted"></span></div>
     <div class="actions">
-      <label class="btn" title="Open a file (or drop it anywhere)">Open file<input id="fileInput" type="file" hidden></label>
-      <button class="btn" id="btnSelection" title="Redact the selected text everywhere">Redact selection</button>
-      <button class="btn" id="btnCopy" title="Copy redacted text">Copy</button>
-      <button class="btn primary" id="btnDownload" title="Download (Ctrl+S)">Download</button>
       <button class="btn icon" id="btnTheme" title="Toggle dark mode" aria-label="Toggle dark mode">Theme</button>
       <button class="btn icon" id="btnSidebar" title="Toggle sidebar" aria-label="Toggle sidebar">☰</button>
     </div>
@@ -29,23 +25,58 @@
         <button role="tab" data-tab="input" class="tab active">Input</button>
         <button role="tab" data-tab="compare" class="tab">Side by side</button>
         <button role="tab" data-tab="output" class="tab">Redacted output</button>
-        <span class="spacer"></span>
-        <button class="btn small ghost" id="btnClear">Clear</button>
-        <button class="btn small ghost" id="btnSample">Load sample</button>
+        <button role="tab" data-tab="restore" class="tab" title="Translate placeholders back using a saved mapping">Restore</button>
       </nav>
 
       <section class="panel active" data-panel="input">
+        <div class="panel-bar">
+          <label class="btn small" title="Open a file (or drop it anywhere)">Open file<input id="fileInput" type="file" hidden></label>
+          <button class="btn small ghost" id="btnSample">Load sample</button>
+          <button class="btn small ghost" id="btnClear">Clear</button>
+          <span class="spacer"></span>
+          <button class="btn small" data-action="selection" title="Redact the selected text everywhere">Redact selection</button>
+        </div>
         <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste logs, configs or any text here, or drop a file anywhere on the page.&#10;&#10;Everything is processed locally in your browser. Nothing is uploaded."></textarea>
       </section>
 
       <section class="panel" data-panel="compare">
+        <div class="panel-bar">
+          <span class="muted">Select text in the original to redact it everywhere; click a highlight for details.</span>
+          <span class="spacer"></span>
+          <button class="btn small" data-action="selection" title="Redact the selected text everywhere">Redact selection</button>
+          <button class="btn small" data-action="copy" title="Copy redacted text">Copy</button>
+          <button class="btn small primary" data-action="download" title="Download redacted file (Ctrl+S)">Download</button>
+        </div>
         <div class="grid-head"><span>Original</span><span>Redacted</span></div>
         <div id="grid" class="grid" tabindex="0"></div>
         <div id="empty" class="empty">Nothing to show yet. Paste text or open a file in the <b>Input</b> tab.</div>
       </section>
 
       <section class="panel" data-panel="output">
+        <div class="panel-bar">
+          <span class="spacer"></span>
+          <button class="btn small" data-action="copy" title="Copy redacted text">Copy</button>
+          <button class="btn small primary" data-action="download" title="Download redacted file (Ctrl+S)">Download</button>
+        </div>
         <textarea id="output" spellcheck="false" readonly></textarea>
+      </section>
+
+      <section class="panel" data-panel="restore">
+        <div class="panel-bar">
+          <span class="muted">Mapping:</span> <b id="restoreSource"></b>
+          <label class="btn small" title="Load a .mapping.json or .mapping.csv export">Load mapping<input id="mapInput" type="file" accept=".json,.csv,application/json,text/csv" hidden></label>
+          <button class="btn small ghost" id="btnMapCurrent" title="Use the mapping of the document in the Input tab">Use current</button>
+          <span class="spacer"></span>
+          <label class="btn small" title="Open a redacted file">Open redacted file<input id="restoreFileInput" type="file" hidden></label>
+          <button class="btn small" data-action="copy" title="Copy restored text">Copy</button>
+          <button class="btn small primary" data-action="download" title="Download restored file (Ctrl+S)">Download</button>
+        </div>
+        <div class="grid-head"><span>Redacted text, or a reply that mentions placeholders</span><span>Restored (contains original values)</span></div>
+        <div class="split">
+          <textarea id="restoreInput" spellcheck="false" autocomplete="off" placeholder="Paste redacted text here, e.g. &quot;&lt;HOST_3&gt; cannot reach &lt;IP_1&gt;&quot;.&#10;&#10;Load the mapping you exported when redacting, or use the mapping of the current document.&#10;Drop a .mapping.json / .mapping.csv to load it, or any other file to restore it."></textarea>
+          <textarea id="restoreOutput" spellcheck="false" readonly></textarea>
+        </div>
+        <div id="restoreStatus" class="restore-status muted"></div>
       </section>
 
       <footer class="statusbar">
@@ -105,7 +136,7 @@
 
       <details>
         <summary>Mapping <span id="mapCount" class="count"></span></summary>
-        <p class="hint warn">Contains the original sensitive values. Keep it private: it lets you translate placeholders back when someone refers to <code>&lt;HOST_3&gt;</code>.</p>
+        <p class="hint warn">Contains the original sensitive values. Keep it private: it lets you translate placeholders back when someone refers to <code>&lt;HOST_3&gt;</code>. Use the <b>Restore</b> tab for that.</p>
         <div class="row-buttons">
           <button class="btn small" id="btnMapJson">Export JSON</button>
           <button class="btn small" id="btnMapCsv">Export CSV</button>

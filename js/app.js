@@ -113,6 +113,71 @@
     const n = state.result.spans.length;
     $('stats').textContent = state.text ? `${lines.toLocaleString()} lines · ${n.toLocaleString()} redactions · ${state.result.mapping.length.toLocaleString()} unique values` : '';
     $('status').textContent = state.text ? `processed in ${ms} ms` : '';
+    if (!restore.loaded) runRestore();
+  }
+
+  // ---------------------------------------------------------------- restore
+  // The restore input/output and a loaded mapping hold sensitive values: kept in memory only, never stored.
+  const restore = {
+    loaded: null,   // {name, entries} from a mapping file; null = use the current document's mapping
+    fileName: null, // name of an opened redacted file, for the download name
+  };
+
+  function restoreEntries() {
+    return restore.loaded ? restore.loaded.entries : (state.result ? state.result.mapping : []);
+  }
+
+  function runRestore() {
+    const entries = restoreEntries();
+    const n = `${entries.length.toLocaleString()} ${entries.length === 1 ? 'entry' : 'entries'}`;
+    $('restoreSource').textContent = restore.loaded ? `${restore.loaded.name} (${n})` : `current document (${n})`;
+    $('btnMapCurrent').hidden = !restore.loaded;
+    const input = $('restoreInput').value;
+    const status = $('restoreStatus');
+    if (!input) {
+      $('restoreOutput').value = '';
+      status.textContent = entries.length ? '' : 'No mapping yet: load an exported mapping file, or redact a document first.';
+      status.classList.remove('warn');
+      return;
+    }
+    const r = R.restore(input, entries);
+    $('restoreOutput').value = r.text;
+    let msg = `${r.count.toLocaleString()} placeholders restored (${r.used.length.toLocaleString()} distinct)`;
+    if (r.unresolved.length) {
+      const list = r.unresolved.slice(0, 8).join(', ') + (r.unresolved.length > 8 ? ', …' : '');
+      msg += ` · ${r.unresolved.length} not in this mapping: ${list}`;
+    }
+    status.textContent = msg;
+    status.classList.toggle('warn', r.unresolved.length > 0);
+  }
+
+  function loadMapping(name, content) {
+    try {
+      restore.loaded = { name, entries: R.parseMapping(content) };
+    } catch (err) {
+      toast('Not a mapping file: ' + err.message);
+      return false;
+    }
+    runRestore();
+    toast(`Loaded mapping ${name}`);
+    return true;
+  }
+
+  // On the Restore tab, a dropped/opened .json or .csv that parses as a mapping is loaded as one.
+  async function openRestoreFile(file) {
+    if (!file) return;
+    const text = await file.text();
+    if (/\.(json|csv)$/i.test(file.name)) {
+      try {
+        R.parseMapping(text);
+        loadMapping(file.name, text);
+        return;
+      } catch (e) { /* not a mapping: restore it as a document */ }
+    }
+    restore.fileName = file.name;
+    $('restoreInput').value = text;
+    runRestore();
+    toast(`Loaded ${file.name}`);
   }
 
   function renderGrid() {
@@ -391,26 +456,55 @@
     const f = e.dataTransfer && e.dataTransfer.files[0];
     if (f) {
       if (e.target && e.target.id === 'profileInput') return;
-      openFile(f);
+      if (state.tab === 'restore') openRestoreFile(f);
+      else openFile(f);
     }
   });
 
-  $('btnCopy').addEventListener('click', async () => {
+  // Restore tab
+  $('restoreInput').addEventListener('input', () => { restore.fileName = null; runRestore(); });
+  $('mapInput').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) loadMapping(f.name, await f.text());
+  });
+  $('restoreFileInput').addEventListener('change', e => { openRestoreFile(e.target.files[0]); e.target.value = ''; });
+  $('btnMapCurrent').addEventListener('click', () => { restore.loaded = null; runRestore(); toast('Using the current document\'s mapping'); });
+  // Toolbar buttons live in each tab and act on that tab's content.
+  async function doCopy() {
+    if (state.tab === 'restore') {
+      if (!$('restoreOutput').value) return toast('Nothing to copy');
+      await copyText($('restoreOutput').value);
+      return toast('Restored text copied');
+    }
     if (!state.result || !state.text) return toast('Nothing to copy');
     await copyText(state.result.text);
     toast('Redacted text copied');
-  });
+  }
 
+  // Ctrl+S also lands here: restored text on the Restore tab, the redacted document everywhere else.
   function doDownload() {
+    if (state.tab === 'restore') {
+      if (!$('restoreOutput').value) return toast('Nothing to download');
+      const name = R.restoredFilename(restore.fileName);
+      download(name, $('restoreOutput').value);
+      return toast('Saved ' + name);
+    }
     if (!state.result || !state.text) return toast('Nothing to download');
     const name = R.redactedFilename(state.fileName);
     download(name, state.result.text);
     toast('Saved ' + name);
   }
-  $('btnDownload').addEventListener('click', doDownload);
 
-  $('btnSelection').addEventListener('mousedown', e => e.preventDefault()); // keep the selection
-  $('btnSelection').addEventListener('click', e => promptRedactSelection(e.currentTarget.getBoundingClientRect()));
+  document.querySelectorAll('[data-action]').forEach(btn => {
+    const act = btn.dataset.action;
+    if (act === 'selection') btn.addEventListener('mousedown', e => e.preventDefault()); // keep the selection
+    btn.addEventListener('click', e => {
+      if (act === 'copy') doCopy();
+      else if (act === 'download') doDownload();
+      else if (act === 'selection') promptRedactSelection(e.currentTarget.getBoundingClientRect());
+    });
+  });
 
   $('btnClear').addEventListener('click', () => { setText('', null); setTab('input'); $('input').focus(); });
   $('btnSample').addEventListener('click', () => { setText(SAMPLE, 'sample-app.log'); setTab('compare'); });
@@ -450,7 +544,10 @@
     if (!pop.hidden && !pop.contains(e.target) && !e.target.closest('mark.hl')) hidePopover();
   });
   document.addEventListener('keydown', e => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); doDownload(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      doDownload();
+    }
     if (e.key === 'Escape') hidePopover();
   });
 
@@ -580,5 +677,5 @@
   renderSettingsForm();
   run();
   if (location.hash === '#sample') { setText(SAMPLE, 'sample-app.log'); setTab('compare'); }
-  R.app = { setText, setTab, state, run };
+  R.app = { setText, setTab, state, run, restore, runRestore, loadMapping };
 })(window.Redacted = window.Redacted || {});
